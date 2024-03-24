@@ -55,16 +55,14 @@ class Exp_Main:
 
             self.model.train()
             epoch_time = time.time()
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(self.train_loader):
+            for i, (batch_x, batch_y) in enumerate(self.train_loader):
                 iter_count += 1
                 self.model_optim.zero_grad()
                 batch_x = batch_x.float().to(self.device)
-
                 batch_y = batch_y.float().to(self.device)
-                batch_x_mark = batch_x_mark.float().to(self.device)
 
                 # encoder - decoder
-                outputs = self.model(batch_x, batch_x_mark)
+                outputs = self.model(batch_x)
 
                 batch_y = batch_y.to(self.device)
                 loss = self.criterion(outputs, batch_y)
@@ -113,14 +111,12 @@ class Exp_Main:
         val_pred, val_y = [], []
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(vali_loader):
+            for i, (batch_x, batch_y) in enumerate(vali_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float()
 
-                batch_x_mark = batch_x_mark.float().to(self.device)
-
                 # encoder - decoder
-                outputs = self.model(batch_x, batch_x_mark)
+                outputs = self.model(batch_x)
                 batch_y = batch_y.to(self.device)
                 pred = outputs.detach().cpu()
                 true = batch_y.detach().cpu()
@@ -152,14 +148,12 @@ class Exp_Main:
 
         self.model.eval()
         with torch.no_grad():
-            for i, (batch_x, batch_y, batch_x_mark, batch_y_mark) in enumerate(self.test_loader):
+            for i, (batch_x, batch_y) in enumerate(self.test_loader):
                 batch_x = batch_x.float().to(self.device)
                 batch_y = batch_y.float().to(self.device)
 
-                batch_x_mark = batch_x_mark.float().to(self.device)
-
                 # encoder - decoder
-                outputs = self.model(batch_x, batch_x_mark)
+                outputs = self.model(batch_x)
 
                 batch_y = batch_y.to(self.device)
                 outputs = outputs.detach().cpu().numpy()

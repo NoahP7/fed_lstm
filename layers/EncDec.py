@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import math
-from Fourier import FourierBlock
+from layers.Fourier import FourierBlock
 
 
 class my_Layernorm(nn.Module):
@@ -41,6 +41,7 @@ class moving_avg(nn.Module):
 class series_decomp_multi(nn.Module):
     """
     Series decomposition block
+    : Trend  & Seasonal 추출
     """
     def __init__(self, kernel_size):
         super(series_decomp_multi, self).__init__()
@@ -49,36 +50,29 @@ class series_decomp_multi(nn.Module):
 
     def forward(self, x):
         moving_mean=[]
+
         for func in self.moving_avg:
             moving_avg = func(x)
             moving_mean.append(moving_avg.unsqueeze(-1))
         moving_mean=torch.cat(moving_mean,dim=-1)
-        # print('series_decomp_multi moving mean: ', moving_mean.shape)
         moving_mean = torch.sum(moving_mean * nn.Softmax(-1)(self.layer(x.unsqueeze(-1))),dim=-1)
-        # print('series_decomp_multi moving mean(2): ', moving_mean.shape)
         res = x - moving_mean
+
         return res, moving_mean 
 
 
 class EncoderLayer(nn.Module):
-    """
-    Autoformer encoder layer with the progressive decomposition architecture
-    """
     def __init__(self, configs):
         super(EncoderLayer, self).__init__()
-        d_ff = configs.d_ff or 4 * configs.d_model
 
-        ## AutoCorrelationLayer
-        self.linear1 = nn.Linear(configs.d_model, configs.d_model)
-        self.fft_block = FourierBlock(in_channels=configs.d_model,
-                                      out_channels=configs.d_model,
+        self.fft_block = FourierBlock(in_channels=configs.enc_in,
+                                      out_channels=configs.enc_in,
                                       seq_len=configs.seq_len,
                                       modes=configs.modes,
                                       mode_select_method=configs.mode_select)
-        self.linear2 = nn.Linear(configs.d_model, configs.d_model)
 
-        self.conv1 = nn.Conv1d(in_channels=configs.d_model, out_channels=d_ff, kernel_size=1, bias=False)
-        self.conv2 = nn.Conv1d(in_channels=d_ff, out_channels=configs.d_model, kernel_size=1, bias=False)
+        self.conv1 = nn.Conv1d(in_channels=configs.enc_in, out_channels=configs.d_model, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(in_channels=configs.d_model, out_channels=configs.enc_in, kernel_size=1, bias=False)
 
         self.decomp1 = series_decomp_multi(configs.trend_kernels)
         self.decomp2 = series_decomp_multi(configs.trend_kernels)
@@ -88,23 +82,27 @@ class EncoderLayer(nn.Module):
 
     def forward(self, x):
 
-        x = self.linear1(x)
-        x, attn = self.fft_block(x)
-        new_x = self.linear2(x)
+        # FFT를 이용하여 변동성이 감소된 데이터 추출
+        new_x, attn = self.fft_block(x)
 
-        # original
-        x = x + self.dropout(new_x)
-        x, _ = self.decomp1(x)
+        # trend를 제외시켜 더 강한 High frequency 추출
+        x, _ = self.decomp1(new_x)
         y = x
+
+        # Feed Forward
         y = self.dropout(self.activation(self.conv1(y.transpose(-1, 1))))
         y = self.dropout(self.conv2(y).transpose(-1, 1))
+
+        # trend를 제외시켜 더 강한 High frequency 추출
         res, _ = self.decomp2(x + y)
-        #
 
         return res, attn
 
 
 class Encoder(nn.Module):
+    """
+    노이즈성이 아닌 이벤트, 변환점의 중요 정보를 갖는 Global High Frequency 추출 진행
+    """
     def __init__(self, configs, norm_layer=None):
         super(Encoder, self).__init__()
 
@@ -135,8 +133,6 @@ class Decoder_Lstm(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.device = device
 
-    # Called with either one element to determine next action, or a batch
-    # during optimization. Returns tensor([[left0exp,right0exp]...]).
     def forward(self, x):
         x = x.to(self.device)
         outputs, _ = self.lstm1(x)
@@ -145,25 +141,3 @@ class Decoder_Lstm(nn.Module):
         outputs = self.head(outputs.reshape(outputs.size(0), -1))
         return self.sigmoid(outputs)
 
-
-class AutoCorrelationLayer(nn.Module):
-    def __init__(self, configs):
-        super(AutoCorrelationLayer, self).__init__()
-
-        self.inner_correlation = FourierBlock(in_channels=configs.d_model,
-                                        out_channels=configs.d_model,
-                                        seq_len=configs.seq_len,
-                                        modes=configs.modes,
-                                        mode_select_method=configs.mode_select)
-        self.query_projection = nn.Linear(configs.d_model, configs.d_model)
-        self.out_projection = nn.Linear(configs.d_model, configs.d_model)
-
-    def forward(self, queries):
-        B, L, E = queries.shape
-
-        queries = self.query_projection(queries)
-        out, attn = self.inner_correlation(queries)
-
-        # out = out.view(B, L, -1)
-        # out = out.reshape(B, L, -1)
-        return self.out_projection(out), attn

@@ -16,7 +16,7 @@ def main():
     # basic config
     parser.add_argument('--is_training', type=int, default=1, help='1: train, 0: test')
 
-    # supplementary config for FEDformer model
+    # supplementary config for FED-Lstm model
     parser.add_argument('--mode_select', type=str, default='random',
                         help='frequency domain 변환 후, 추출 모드: [random, low]')
     parser.add_argument('--modes', type=int, default=8, help='추출할 주파수 갯수')
@@ -24,6 +24,7 @@ def main():
     # data loader
     parser.add_argument('--root_path', type=str, default='./dataset/BTC/', help='데이터 경로')
     parser.add_argument('--data_path', type=str, default='ETH_tech1h.csv', help='데이터 파일명')
+    parser.add_argument('--fiat', type=str, default='ETH', help='fiat')
     parser.add_argument('--checkpoints', type=str, default='./checkpoints/', help='모델 저장 위치')
 
     # forecasting task
@@ -35,14 +36,13 @@ def main():
     parser.add_argument('--c_out', type=int, default=5, help='output size')
     parser.add_argument('--d_model', type=int, default=128, help='dimension of model')
     parser.add_argument('--e_layers', type=int, default=2, help='num of encoder layers')
-    parser.add_argument('--d_ff', type=int, default=256, help='dimension of fcn')
     parser.add_argument('--trend_kernels', default=[6, 12, 24], help='window size of moving average')
     parser.add_argument('--dropout', type=float, default=0.05, help='dropout')
     parser.add_argument('--activation', type=str, default='gelu', help='activation')
 
     # optimization
     parser.add_argument('--num_workers', type=int, default=4, help='data loader num workers')
-    parser.add_argument('--itr', type=int, default=3, help='experiments times')
+    parser.add_argument('--itr', type=int, default=3, help='experiments iterations')
     parser.add_argument('--train_epochs', type=int, default=50, help='train epochs')
     parser.add_argument('--batch_size', type=int, default=32, help='batch size of train input data')
     parser.add_argument('--patience', type=int, default=5, help='early stopping patience')
@@ -83,11 +83,8 @@ def main():
             exp.test(path, 'fed_lstm', 1)
             torch.cuda.empty_cache()
     else:
-        setting = 'fed_lstm'
-
         exp = Exp(args)  # set experiments
-        print('>>>>>>>testing : {}<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<'.format(setting))
-        exp.test(setting, test=1)
+        exp.test(path, 'fed_lstm', 1)
         torch.cuda.empty_cache()
 
 if __name__ == "__main__":
