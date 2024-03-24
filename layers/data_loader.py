@@ -112,7 +112,7 @@ class BTCloader(Dataset):
                     ['_openprice', '_highprice', '_lowprice', '_closeprice', '_tradevolume', '_obv', '_macd',
                      '_macdsignal', '_macdhist']]
                     # ['_openprice']]
-        col_list_sub = ['_rsi', '_Srsi_K', '_Srsi_D', '_mfi', '_cci', '_ema']
+        col_list_sub = ['_rsi', '_Srsi_K', '_Srsi_D', '_mfi', '_cci']
         periodLst = list(period_dict.values())
         for c in col_list_sub:
             for p in periodLst:
@@ -126,7 +126,6 @@ class BTCloader(Dataset):
         df[fiat+'_lowprice'] = df[fiat+'_lowprice'].pct_change()
         df[fiat+'_closeprice'] = df[fiat+'_closeprice'].pct_change()
         df[fiat+'_tradevolume'] = df[fiat+'_tradevolume'].pct_change()
-        df[fiat+'_ema'] = df[fiat+'_ema'].pct_change()
         df = df.iloc[1:].reset_index(drop=True)
         df_stamp = df[['date']].copy()
         df = df.drop(['date'], axis=1)
